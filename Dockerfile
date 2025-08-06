@@ -1,5 +1,9 @@
 FROM richarvey/nginx-php-fpm:latest
 
+# Copy custom Nginx configuration
+COPY nginx.conf /etc/nginx/sites-available/default.conf
+RUN ln -sf /etc/nginx/sites-available/default.conf /etc/nginx/sites-enabled/default.conf
+
 # Install system dependencies
 RUN apk update && \
     apk add --no-cache \

@@ -22,6 +22,9 @@ RUN apk update && \
 # Set working directory
 WORKDIR /var/www/html
 
+# Create an empty .env file
+RUN touch .env
+
 # Copy source code and composer files
 COPY . /var/www/html
 COPY composer.json composer.lock ./

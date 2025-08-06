@@ -1,20 +1,19 @@
 FROM richarvey/nginx-php-fpm:latest
 
 # Install system dependencies
-RUN apt-get update && \
-    apt-get install -y \
+RUN apk update && \
+    apk add --no-cache \
     git \
     unzip \
     libzip-dev \
     libpng-dev \
-    libjpeg-dev \
-    php-pgsql \
-    php-zip \
-    php-exif \
-    php-pcntl \
-    php-gd \
-    --no-install-recommends && \
-    rm -rf /var/lib/apt/lists/*
+    libjpeg-turbo-dev \
+    postgresql-dev \
+    php8-pdo_pgsql \
+    php8-zip \
+    php8-exif \
+    php8-pcntl \
+    php8-gd
 
 # Set working directory
 WORKDIR /var/www/html

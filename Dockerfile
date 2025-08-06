@@ -26,15 +26,19 @@ WORKDIR /var/www/html
 COPY . /var/www/html
 
 # Install Composer
+COPY composer.json composer.lock ./
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-
-# Install PHP dependencies
 RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+# Copy source code
+COPY . /var/www/html
+
+# Generate application key
+RUN php artisan key:generate
 
 # Set permissions
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 RUN chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Expose port 80 and start nginx
+# Expose port 80
 EXPOSE 80
-RUN touch .env

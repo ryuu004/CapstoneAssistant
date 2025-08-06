@@ -22,16 +22,13 @@ RUN apk update && \
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy source code
+# Copy source code and composer files
 COPY . /var/www/html
+COPY composer.json composer.lock ./
 
 # Install Composer
-COPY composer.json composer.lock ./
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
-
-# Copy source code
-COPY . /var/www/html
 
 # Generate application key
 RUN php artisan key:generate

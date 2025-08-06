@@ -28,13 +28,11 @@ class GeminiController extends Controller
                 'prompt' => 'nullable|string',
                 'fileIds' => 'nullable|array',
                 'fileIds.*' => 'string',
-                'conversation_id' => 'nullable|uuid', // Add conversation_id validation
+                'conversation_id' => 'nullable|uuid',
+                'api_key' => 'required|string',
             ]);
 
-            $apiKey = env('GEMINI_API_KEY');
-            if (!$apiKey) {
-                return response()->json(['error' => 'GEMINI_API_KEY is not set.'], 500);
-            }
+            $apiKey = $request->input('api_key');
 
             $originalUserPrompt = $request->input('prompt', ''); // Store the original prompt
             $fileIds = $request->input('fileIds', []);
@@ -243,6 +241,7 @@ class GeminiController extends Controller
         $request->validate([
             'conversation_id' => 'required|uuid',
             'user_prompt' => 'required|string',
+            'api_key' => 'required|string',
         ]);
 
         $conversationId = $request->input('conversation_id');
@@ -254,10 +253,7 @@ class GeminiController extends Controller
             return response()->json(['error' => 'Conversation not found.'], 404);
         }
 
-        $apiKey = env('GEMINI_API_KEY');
-        if (!$apiKey) {
-            return response()->json(['error' => 'GEMINI_API_KEY is not set.'], 500);
-        }
+        $apiKey = $request->input('api_key');
 
         try {
             // Use Gemini to generate a title based on the user's prompt
@@ -292,6 +288,34 @@ class GeminiController extends Controller
         } catch (\Exception $e) {
             Log::error('An unexpected error occurred during title generation: ' . $e->getMessage());
             return response()->json(['error' => 'An unexpected server error occurred during title generation: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function validateApiKey(Request $request)
+    {
+        $request->validate([
+            'api_key' => 'required|string',
+        ]);
+
+        $apiKey = $request->input('api_key');
+
+        try {
+            $response = Http::withHeaders([
+                'Content-Type' => 'application/json',
+                'x-goog-api-key' => $apiKey,
+            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent", [
+                'contents' => [
+                    ['parts' => [['text' => 'Hello']]]
+                ]
+            ]);
+
+            if ($response->successful()) {
+                return response()->json(['valid' => true]);
+            } else {
+                return response()->json(['valid' => false], 401);
+            }
+        } catch (\Exception $e) {
+            return response()->json(['valid' => false, 'error' => $e->getMessage()], 500);
         }
     }
 }

@@ -7,8 +7,15 @@ function geminiAssistant(csrfToken, initialConversationId = null) {
         conversations: [],
         currentConversationId: initialConversationId, // Initialize with ID from URL
         isTyping: false,
+        apiKey: '',
+        isApiKeyNeeded: false,
  
         init() {
+            this.apiKey = localStorage.getItem('gemini_api_key');
+            if (!this.apiKey) {
+                this.isApiKeyNeeded = true;
+            }
+
             if (this.currentConversationId) {
                 // If an ID is provided in the URL, load that specific conversation
                 this.loadConversation(this.currentConversationId);
@@ -303,7 +310,8 @@ function geminiAssistant(csrfToken, initialConversationId = null) {
                     body: JSON.stringify({
                         prompt: userMessage.content,
                         fileIds: fileIds,
-                        conversation_id: this.currentConversationId
+                        conversation_id: this.currentConversationId,
+                        api_key: this.apiKey
                     })
                 });
 
@@ -337,7 +345,8 @@ function geminiAssistant(csrfToken, initialConversationId = null) {
                             },
                             body: JSON.stringify({
                                 conversation_id: this.currentConversationId,
-                                user_prompt: userMessage.content
+                                user_prompt: userMessage.content,
+                                api_key: this.apiKey
                             })
                         });
                         if (titleRes.ok) {
@@ -360,6 +369,29 @@ function geminiAssistant(csrfToken, initialConversationId = null) {
             } finally {
                 this.isTyping = false;
                 // Files are already cleared, so no need to do it again here.
+            }
+        },
+
+        async validateAndSaveApiKey() {
+            try {
+                const res = await fetch('/validate-api-key', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: JSON.stringify({ api_key: this.apiKey })
+                });
+
+                if (res.ok) {
+                    localStorage.setItem('gemini_api_key', this.apiKey);
+                    this.isApiKeyNeeded = false;
+                } else {
+                    alert('Invalid API Key');
+                }
+            } catch (error) {
+                console.error('Error validating API key:', error);
+                alert('An error occurred while validating the API key.');
             }
         }
     }

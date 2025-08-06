@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: laravel-app
+    env: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: APP_URL
+        value: ${RENDER_EXTERNAL_URL}
+      - key: APP_KEY
+        value: base64:BwPHc/hKMfUbiWU1Qbxymfkd0vBr2vtOq38euTa5sGE=
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_HOST
+        fromService:
+          type: psql
+          name: supabase-db
+          property: host
+      - key: DB_PORT
+        fromService:
+          type: psql
+          name: supabase-db
+          property: port
+      - key: DB_DATABASE
+        fromService:
+          type: psql
+          name: supabase-db
+          property: database
+      - key: DB_USERNAME
+        fromService:
+          type: psql
+          name: supabase-db
+          property: user
+      - key: DB_PASSWORD
+        fromService:
+          type: psql
+          name: supabase-db
+          property: password

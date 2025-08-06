@@ -333,6 +333,17 @@
             </div>
         </div>
     </div>
+<!-- API Key Modal -->
+        <div x-show="isApiKeyNeeded" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg p-8 shadow-2xl w-full max-w-md">
+                <h3 class="text-xl font-semibold mb-4">Enter Gemini API Key</h3>
+                <p class="text-gray-600 mb-6">To use the AI assistant, please provide your Gemini API key. You can get one from <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-blue-600 hover:underline">Google AI Studio</a>.</p>
+                <input type="password" x-model="apiKey" placeholder="Enter your API key" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button @click="validateAndSaveApiKey" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors duration-200">
+                    Save and Continue
+                </button>
+            </div>
+        </div>
 
 </body>
     <script src="{{ asset('js/assistant.js') }}"></script>

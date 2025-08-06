@@ -18,3 +18,4 @@ Route::get('/conversations', [GeminiController::class, 'getConversations']);
 Route::get('/conversations/{conversationId}/messages', [GeminiController::class, 'getMessages']);
 Route::delete('/conversations/{conversationId}', [GeminiController::class, 'deleteConversation']);
 Route::post('/conversations/title', [GeminiController::class, 'updateConversationTitle']);
+Route::post('/validate-api-key', [GeminiController::class, 'validateApiKey']);

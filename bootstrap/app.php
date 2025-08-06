@@ -16,3 +16,15 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();
+
+$app->withFacades(true, [
+    // ... other facade aliases
+    'Session' => Illuminate\Support\Facades\Session::class,
+]);
+
+$app->afterResolving(
+    \Illuminate\Session\SessionManager::class,
+    function ($manager) {
+        $manager->setDefaultDriver('file');
+    }
+);

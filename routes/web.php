@@ -19,3 +19,16 @@ Route::get('/conversations/{conversationId}/messages', [GeminiController::class,
 Route::delete('/conversations/{conversationId}', [GeminiController::class, 'deleteConversation']);
 Route::post('/conversations/title', [GeminiController::class, 'updateConversationTitle']);
 Route::post('/validate-api-key', [GeminiController::class, 'validateApiKey']);
+Route::get('/debug-config', function () {
+    return [
+        'SESSION_DRIVER' => config('session.driver'),
+        'SESSION_CONNECTION' => config('session.connection'),
+        'DB_CONNECTION' => config('database.default'),
+        'DB_HOST' => config('database.connections.pgsql.host'),
+        'DB_PORT' => config('database.connections.pgsql.port'),
+        'DB_DATABASE' => config('database.connections.pgsql.database'),
+        'DB_USERNAME' => config('database.connections.pgsql.username'),
+        'DB_PASSWORD' => config('database.connections.pgsql.password') ? '******' : 'null',
+        'DB_SSLMODE' => config('database.connections.pgsql.sslmode'),
+    ];
+});

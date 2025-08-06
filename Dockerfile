@@ -8,12 +8,12 @@ RUN apk update && \
     libzip-dev \
     libpng-dev \
     libjpeg-turbo-dev \
-    postgresql-dev \
-    php8-pdo_pgsql \
-    php8-zip \
-    php8-exif \
-    php8-pcntl \
-    php8-gd
+    libpq \
+    php-pdo_pgsql \
+    php-zip \
+    php-exif \
+    php-pcntl \
+    php-gd
 
 # Set working directory
 WORKDIR /var/www/html

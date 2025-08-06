@@ -1,4 +1,4 @@
-FROM richarvey/nginx-php-fpm:3.2.0
+FROM richarvey/nginx-php-fpm:latest
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \

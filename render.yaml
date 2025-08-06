@@ -4,11 +4,25 @@ services:
     env: docker
     dockerfilePath: ./Dockerfile
     envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "true" # Set to "false" after debugging
       - key: APP_URL
         value: ${RENDER_EXTERNAL_URL}
       - key: APP_KEY
         value: base64:BwPHc/hKMfUbiWU1Qbxymfkd0vBr2vtOq38euTa5sGE=
-      - key: DATABASE_URL
-        value: postgresql://postgres:rhyiotahari123@db.sljbkhdssflyyienixka.supabase.co:5432/postgres
       - key: DB_CONNECTION
         value: pgsql
+      - key: DB_HOST
+        value: db.sljbkhdssflyyienixka.supabase.co
+      - key: DB_PORT
+        value: 5432
+      - key: DB_DATABASE
+        value: postgres
+      - key: DB_USERNAME
+        value: postgres
+      - key: DB_PASSWORD
+        value: rhyiotahari123
+      - key: DATABASE_URL # Keep DATABASE_URL for compatibility
+        value: postgresql://postgres:rhyiotahari123@db.sljbkhdssflyyienixka.supabase.co:5432/postgres

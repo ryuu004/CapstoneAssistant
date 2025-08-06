@@ -1,14 +1,20 @@
 FROM richarvey/nginx-php-fpm:latest
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && \
+    apt-get install -y \
     git \
     unzip \
     libzip-dev \
     libpng-dev \
     libjpeg-dev \
-    libpq-dev \
-    && docker-php-ext-install pdo_mysql pdo_pgsql zip exif pcntl gd
+    php-pgsql \
+    php-zip \
+    php-exif \
+    php-pcntl \
+    php-gd \
+    --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /var/www/html

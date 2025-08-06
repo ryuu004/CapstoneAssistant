@@ -33,4 +33,4 @@ RUN chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
 # Expose port 80 and start nginx
 EXPOSE 80
-CMD ["/usr/bin/run.sh"]
+RUN touch .env

@@ -4,9 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Capstone AI Assistant</title>
-    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; connect-src 'self' https://generativelanguage.googleapis.com;">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="{{ asset('js/assistant.js') }}"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         /* Custom scrollbar styling */
         .chat-messages::-webkit-scrollbar {
@@ -92,7 +94,41 @@
     </style>
 </head>
 <body class="bg-gray-50 flex h-screen antialiased font-inter">
-    <div class="flex-1 flex h-full" x-data="geminiAssistant('{{ csrf_token() }}', null)">
+    <div class="flex-1 flex h-full" x-data="geminiAssistantComponent('{{ csrf_token() }}', null)">
+        <!-- API Key Modal -->
+        <div x-show="isApiKeyNeeded" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg p-8 shadow-2xl w-full max-w-md">
+                <h3 class="text-xl font-semibold mb-4">Enter Gemini API Key</h3>
+                <p class="text-gray-600 mb-6">To use the AI assistant, please provide your Gemini API key. You can get one from <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-blue-600 hover:underline">Google AI Studio</a>.</p>
+                <div class="relative mb-4">
+                    <input :type="showApiKey ? 'text' : 'password'" x-model="apiKey" placeholder="Enter your API key"
+                           class="w-full px-4 py-2 border rounded-lg pr-10 focus:outline-none focus:ring-2"
+                           :class="{'border-red-500 focus:ring-red-500': apiKeyError, 'border-gray-300 focus:ring-blue-500': !apiKeyError}"
+                           pattern="[a-zA-Z0-9\-_]+" title="API Key can only contain alphanumeric characters, hyphens, and underscores.">
+                    <p x-show="apiKeyError" x-text="apiKeyError" class="text-red-500 text-xs mt-1"></p>
+                    <button type="button" @click="toggleApiKeyVisibility" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500">
+                        <template x-if="showApiKey">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.656-1.423A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m-.983-2.175A5.002 5.002 0 0012 13a5 5 0 110-10 5 5 0 010 10z"/>
+                            </svg>
+                        </template>
+                        <template x-if="!showApiKey">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                            </svg>
+                        </template>
+                    </button>
+                </div>
+                <button @click="validateAndSaveApiKey"
+                           :disabled="isSavingApiKey"
+                           class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors duration-200"
+                           :class="{'opacity-50 cursor-not-allowed': isSavingApiKey}">
+                   <span x-show="!isSavingApiKey">Save and Continue</span>
+                   <span x-show="isSavingApiKey">Saving...</span>
+               </button>
+            </div>
+        </div>
         <!-- Enhanced Sidebar -->
         <div class="w-64 bg-gray-900 text-white flex flex-col shadow-2xl sidebar overflow-y-auto">
             <!-- Sidebar Header -->
@@ -333,21 +369,16 @@
             </div>
         </div>
     </div>
-<!-- API Key Modal -->
-        <div x-show="isApiKeyNeeded" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
-            <div class="bg-white rounded-lg p-8 shadow-2xl w-full max-w-md">
-                <h3 class="text-xl font-semibold mb-4">Enter Gemini API Key</h3>
-                <p class="text-gray-600 mb-6">To use the AI assistant, please provide your Gemini API key. You can get one from <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-blue-600 hover:underline">Google AI Studio</a>.</p>
-                <input type="password" x-model="apiKey" placeholder="Enter your API key" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <button @click="validateAndSaveApiKey" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors duration-200">
-                    Save and Continue
-                </button>
-            </div>
-        </div>
-
 </body>
-    <script src="{{ asset('js/assistant.js') }}"></script>
     <script>
+        // Global click listener for debugging
+        document.addEventListener('click', function(event) {
+            console.log('Global Click Event:', event.target);
+            if (event.target.closest('button')) {
+                console.log('Clicked button:', event.target.closest('button').outerHTML);
+            }
+        });
+
         document.addEventListener('DOMContentLoaded', function() {
             const chatMessages = document.querySelector('.chat-messages');
             if (chatMessages) {
@@ -359,6 +390,13 @@
                         target.setAttribute('rel', 'noopener noreferrer');
                     }
                 });
+            }
+        });
+
+        // Explicitly start Alpine after all scripts are loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof Alpine !== 'undefined') {
+                Alpine.start();
             }
         });
     </script>

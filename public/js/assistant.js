@@ -1,5 +1,5 @@
-function geminiAssistant(csrfToken, initialConversationId = null) {
-    return {
+document.addEventListener('alpine:init', () => {
+    Alpine.data('geminiAssistantComponent', (csrfToken, initialConversationId = null) => ({
         prompt: '',
         messages: [],
         files: [],
@@ -9,11 +9,19 @@ function geminiAssistant(csrfToken, initialConversationId = null) {
         isTyping: false,
         apiKey: '',
         isApiKeyNeeded: false,
- 
+        showApiKey: false, // New property to toggle API key visibility
+        apiKeyError: '', // Initialize apiKeyError
+        isSavingApiKey: false, // Initialize isSavingApiKey
+
         init() {
+            console.log('Alpine.js component initialized. (Inside init)'); // More specific log
             this.apiKey = localStorage.getItem('gemini_api_key');
             if (!this.apiKey) {
                 this.isApiKeyNeeded = true;
+                console.log('API Key not found, modal is visible.');
+            } else {
+                this.isApiKeyNeeded = false; // Added missing line
+                console.log('API Key found, modal should be hidden.');
             }
 
             if (this.currentConversationId) {
@@ -21,7 +29,7 @@ function geminiAssistant(csrfToken, initialConversationId = null) {
                 this.loadConversation(this.currentConversationId);
             }
             this.fetchConversations(); // Always fetch conversations to populate sidebar
- 
+
             // Watch for changes to the messages array and scroll down
             this.$watch('messages', () => {
                 this.$nextTick(() => {
@@ -271,8 +279,8 @@ function geminiAssistant(csrfToken, initialConversationId = null) {
                         const res = await fetch('/upload-file', {
                             method: 'POST',
                             headers: {
+                                'Content-Type': 'application/json',
                                 'X-CSRF-TOKEN': csrfToken,
-                                'Accept': 'application/json'
                             },
                             body: fileFormData
                         });
@@ -373,6 +381,11 @@ function geminiAssistant(csrfToken, initialConversationId = null) {
         },
 
         async validateAndSaveApiKey() {
+            console.log('validateAndSaveApiKey function called.');
+            console.log('Current API Key:', this.apiKey);
+            this.isSavingApiKey = true; // Set loading state
+            this.apiKeyError = ''; // Clear previous errors
+            console.log('Attempting to validate API key...');
             try {
                 const res = await fetch('/validate-api-key', {
                     method: 'POST',
@@ -384,15 +397,30 @@ function geminiAssistant(csrfToken, initialConversationId = null) {
                 });
 
                 if (res.ok) {
+                    console.log('API Key validated successfully.');
                     localStorage.setItem('gemini_api_key', this.apiKey);
                     this.isApiKeyNeeded = false;
+                    // Additional step: Immediately try to fetch conversations and load the default one
+                    // This ensures the main chat area is ready to use after API key input.
+                    await this.fetchConversations();
+                    console.log('API Key modal should now be hidden and conversations fetched.');
                 } else {
-                    alert('Invalid API Key');
+                    const errorData = await res.json();
+                    console.error('API Key validation failed:', errorData);
+                    this.apiKeyError = errorData.message || 'Invalid API Key. Please check your key and try again.';
                 }
             } catch (error) {
-                console.error('Error validating API key:', error);
-                alert('An error occurred while validating the API key.');
+                console.error('Error during API key validation fetch:', error);
+                this.apiKeyError = 'An error occurred while validating the API key.';
+            } finally {
+                this.isSavingApiKey = false; // Reset loading state
             }
+        },
+
+        toggleApiKeyVisibility() {
+            console.log('toggleApiKeyVisibility called.');
+            this.showApiKey = !this.showApiKey;
+            this.apiKeyError = ''; // Clear error when toggling visibility
         }
-    }
-}
+    }));
+});

@@ -4,17 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Capstone AI Assistant</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 @vite('resources/css/app.css')
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     @vite('resources/js/app.js')
 </head>
-<body class="bg-gray-50 flex h-screen antialiased font-inter">
+<body class="bg-gray-50 flex h-screen antialiased font-inter" data-controller="loading">
+
+    <!-- Global Loading Overlay -->
+    <div data-loading-target="loader" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="flex flex-col items-center w-64">
+            <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                <div data-loading-target="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+            </div>
+            <p class="mt-3 text-white">Loading...</p>
+        </div>
+    </div>
+
     <div class="flex-1 flex h-full"
          data-controller="gemini-assistant"
          data-gemini-assistant-csrf-token-value="{{ csrf_token() }}"
          data-gemini-assistant-initial-conv-id-value="{{ $conversationId ?? '' }}"
-         data-gemini-assistant-professor-avatar-url-value="{{ asset('images/professor_avatar.jpg') }}"
+         data-gemini-assistant-professor-avatar-url-value="{{ $professorAvatarUrl }}"
+         data-current-conversation-id="{{ $conversationId ?? '' }}"
          >
+
+
         <!-- API Key Modal -->
         <div data-gemini-assistant-target="apiKeyModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
             <div class="bg-white rounded-lg p-8 shadow-2xl w-full max-w-md">
@@ -62,27 +77,43 @@
                         </div>
                         <h2 class="text-lg font-semibold">Chats</h2>
                     </div>
-                    <button data-action="click->gemini-assistant#startNewConversation" data-gemini-assistant-target="newChatButton"
-                            class="p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-700 rounded-lg transition-colors relative">
-                        <span data-gemini-assistant-target="newChatButtonText">
+                    <a href="#" data-action="click->gemini-assistant#newChat click->loading#show"
+                       class="p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-700 rounded-lg transition-colors relative">
+                        <span>
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                             </svg>
                         </span>
-                        <span data-gemini-assistant-target="newChatButtonSpinner" class="hidden absolute inset-0 flex items-center justify-center">
-                            <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                        </span>
-                    </button>
+                    </a>
                 </div>
             </div>
             
             <!-- Conversation List -->
             <nav class="flex-1 p-4">
-                <div class="space-y-2" data-gemini-assistant-target="conversationsList">
-                    {{-- Conversations will be dynamically added here by Stimulus --}}
+                <div class="space-y-2">
+                    @forelse($conversations as $conv)
+                        <div class="conversation-item rounded-lg cursor-pointer {{ ($conversationId ?? '') == $conv->id ? 'border-blue-500 border' : '' }}">
+                            <a href="{{ route('assistant.show', $conv->id) }}" data-action="click->loading#show" class="flex items-center justify-between p-3">
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-medium text-white truncate">{{ $conv->title }}</p>
+                                    <p class="text-xs text-gray-400 mt-1">{{ $conv->updated_at->diffForHumans() }}</p>
+                                </div>
+                            </a>
+                            <button data-action="click->gemini-assistant#deleteConversation" data-conversation-id="{{ $conv->id }}"
+                                    class="text-gray-400 hover:text-red-400 p-1 rounded transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                            </button>
+                            <form id="delete-conv-{{ $conv->id }}" action="{{ route('conversations.delete', $conv->id) }}" method="POST" style="display: none;">
+                                @csrf
+                                @method('DELETE')
+                            </form>
+                        </div>
+                    @empty
+                        <p class="text-gray-400 text-center py-4">No conversations yet. Start a new chat!</p>
+                    @endforelse
                 </div>
             </nav>
             
@@ -95,12 +126,20 @@
                         </svg>
                     </div>
                     <div class="ml-3">
-                        <p class="text-sm font-medium text-white">Student</p>
+                        <p class="text-sm font-medium text-white">{{ Auth::user()->name ?? 'Guest' }}</p>
                         <p class="text-xs text-gray-400">Online</p>
                     </div>
                 </div>
                 <div class="mt-4 text-xs text-gray-400" data-gemini-assistant-target="maskedApiKeyDisplay" hidden>
                     API Key: <span class="font-mono"></span>
+                </div>
+                <div class="mt-4">
+                    <button data-controller="logout" data-action="logout#logout click->loading#show" class="w-full flex items-center justify-center p-2 text-red-400 hover:text-red-200 hover:bg-red-700 rounded-lg transition-colors">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                        </svg>
+                        Logout
+                    </button>
                 </div>
             </div>
         </div>
@@ -132,11 +171,10 @@
             <!-- Messages Area -->
             <div class="flex-1 p-6 overflow-y-auto chat-messages bg-gray-50 relative" data-gemini-assistant-target="chatMessages">
                 <div class="max-w-4xl mx-auto space-y-6" data-gemini-assistant-target="messagesContainer">
-                    {{-- Messages will be dynamically added here by Stimulus --}}
                     
                 </div>
                 <!-- Typing Indicator -->
-                <div data-gemini-assistant-target="typingIndicator" hidden class="max-w-4xl mx-auto flex justify-start">
+                <div data-gemini-assistant-target="typingIndicator" hidden class="max-w-4xl mx-auto flex justify-start mb-4">
                     <div class="flex items-center">
                         <div class="w-8 h-8 rounded-full flex items-center justify-center mr-2 flex-shrink-0 overflow-hidden">
                             <img src="{{ $professorAvatarUrl }}" alt="Professor Avatar" class="w-full h-full object-cover">
@@ -152,7 +190,7 @@
                 </div>
 
                 <!-- Chat Loading Overlay -->
-                <div data-gemini-assistant-target="chatLoadingOverlay" hidden class="absolute inset-0 bg-gray-50 bg-opacity-75 flex items-center justify-center z-10">
+                <div data-gemini-assistant-target="chatLoadingOverlay" hidden class="absolute inset-0 bg-gray-50 bg-opacity-50 flex items-center justify-center z-10">
                     <div class="flex flex-col items-center">
                         <svg class="animate-spin h-10 w-10 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -189,7 +227,7 @@
                                     class="flex-1 px-3 py-2 bg-transparent border-none focus:outline-none text-gray-900 placeholder-gray-500 resize-none max-h-32 overflow-y-auto"
                                     rows="1"
                             ></textarea>
-                            <button data-action="click->gemini-assistant#askGemini"
+                            <button data-action="click->gemini-assistant#handleEnter"
                                     data-gemini-assistant-target="askGeminiButton"
                                     class="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors relative">
                                 <span data-gemini-assistant-target="askButtonText">

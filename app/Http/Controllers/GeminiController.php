@@ -21,22 +21,52 @@ class GeminiController extends Controller
         $this->webScraperService = $webScraperService;
     }
 
-    public function ask(Request $request)
+    public function show($conversationId = null)
+    {
+        $userId = Auth::id();
+        $conversations = Conversation::where('user_id', $userId)
+                                     ->withCount('messages')
+                                     ->orderBy('updated_at', 'desc')
+                                     ->get();
+
+        $messages = collect(); // Always initialize as an empty collection for JS-only rendering
+
+        if ($conversationId) {
+            $conversation = Conversation::where('id', $conversationId)
+                                        ->where('user_id', $userId)
+                                        ->first();
+            if (!$conversation) {
+                // If conversation not found, redirect to base assistant page with a message
+                return redirect()->route('assistant.show')->with('error', 'Conversation not found or unauthorized.');
+            }
+        }
+        // Removed the logic that automatically sets conversationId to the first one
+        // if no specific conversation ID is provided.
+
+        return view('assistant', [
+            'conversationId' => $conversationId,
+            'conversations' => $conversations,
+            'messages' => $messages,
+            'professorAvatarUrl' => asset('images/professor_avatar.jpg'),
+        ]);
+    }
+
+    public function ask(Request $request, $conversationId = null)
     {
         try {
             $request->validate([
                 'prompt' => 'nullable|string',
                 'fileIds' => 'nullable|array',
                 'fileIds.*' => 'string',
-                'conversation_id' => 'nullable|uuid',
                 'api_key' => 'required|string',
+                'conversation_id' => 'nullable|string',
             ]);
 
             $apiKey = $request->input('api_key');
+            $conversationId = $request->input('conversation_id', $conversationId);
 
-            $originalUserPrompt = $request->input('prompt', ''); // Store the original prompt
+            $originalUserPrompt = $request->input('prompt', '');
             $fileIds = $request->input('fileIds', []);
-            $conversationId = $request->input('conversation_id');
             $parts = [];
             $processedFilePaths = [];
 
@@ -53,17 +83,32 @@ class GeminiController extends Controller
             }
 
             // Retrieve or create conversation
+            $userId = Auth::id();
+            if (!$userId) {
+                Log::warning('ask method: Auth::id() is null, using placeholder UUID.');
+                $userId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'; // Placeholder UUID
+            }
+            
             $conversation = null;
-            $userId = Auth::id() ?? 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'; // Placeholder UUID
             if ($conversationId) {
-                $conversation = Conversation::where('id', $conversationId)->where('user_id', $userId)->first();
+                $conversation = Conversation::where('id', $conversationId)
+                                            ->where('user_id', $userId)
+                                            ->first();
             }
 
-            if (!$conversation) {
+            if (!$conversation && (!empty($originalUserPrompt) || !empty($fileIds))) {
                 $conversation = Conversation::create([
                     'user_id' => $userId,
-                    'title' => \Illuminate\Support\Str::limit($originalUserPrompt, 50) ?: 'New Chat', // Use original for title
+                    'title' => \Illuminate\Support\Str::limit($originalUserPrompt, 50) ?: 'New Chat'
                 ]);
+            } else if ($conversation && $conversation->title === 'New Chat' && !empty($originalUserPrompt)) {
+                $conversation->title = \Illuminate\Support\Str::limit($originalUserPrompt, 50);
+                $conversation->save();
+            }
+            // If conversation title is not 'New Chat' and prompt is not empty, update title
+            else if ($conversation && $conversation->title !== 'New Chat' && !empty($originalUserPrompt)) {
+                $conversation->title = \Illuminate\Support\Str::limit($originalUserPrompt, 50);
+                $conversation->save();
             }
 
             // Fetch existing messages for the history
@@ -81,6 +126,25 @@ class GeminiController extends Controller
                     'role' => $role,
                     'parts' => [['text' => $message->content]]
                 ];
+            }
+
+            // Check for duplicate user message within a short timeframe
+            $existingUserMessage = Message::where('conversation_id', $conversation->id)
+                ->where('role', 'user')
+                ->where('content', $originalUserPrompt ?? '')
+                ->whereRaw('file_ids::text = ?', [json_encode($fileIds)]) // Correct JSON comparison for PostgreSQL
+                ->where('created_at', '>=', now()->subSeconds(5)) // Within the last 5 seconds
+                ->first();
+
+            if ($existingUserMessage) {
+                Log::info('Duplicate user message detected, skipping save.');
+                // If a duplicate is found, we can skip the rest of the logic and return
+                // the current conversation messages, as the frontend will re-fetch anyway.
+                // This prevents duplicate API calls and message saves.
+                return response()->json([
+                    'output' => 'Duplicate message received, processing skipped.',
+                    'conversation_id' => $conversation->id
+                ]);
             }
 
             // Save user message
@@ -160,8 +224,11 @@ class GeminiController extends Controller
 
             return response()->json([
                 'output' => $assistantResponseText,
-                'conversation_id' => $conversation->id, // Return conversation ID
+                'conversation_id' => $conversation->id
             ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Validation error in ask method: ' . $e->getMessage(), ['errors' => $e->errors()]);
+            return response()->json(['error' => $e->errors()], 422);
 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             Log::error('Gemini API Connection Exception: ' . $e->getMessage());
@@ -188,109 +255,6 @@ class GeminiController extends Controller
             }
         }
     }
-    public function newConversation(Request $request)
-    {
-        // For now, assuming a default user_id or authenticated user
-        // In a real application, ensure user is authenticated
-        $conversation = Conversation::create([
-            'user_id' => Auth::id() ?? 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', // Placeholder UUID if Auth::id() is null
-            'title' => $request->input('title', 'New Chat'),
-        ]);
-
-        return response()->json(['conversation_id' => $conversation->id]);
-    }
-
-    public function getConversations()
-    {
-        // For now, assuming a default user_id or authenticated user
-        $userId = Auth::id() ?? 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
-        $conversations = Conversation::where('user_id', $userId)
-                                     ->withCount('messages') // Add message count
-                                     ->orderBy('updated_at', 'desc')
-                                     ->get();
-        return response()->json(['conversations' => $conversations]);
-    }
-
-    public function getMessages(Request $request, $conversationId)
-    {
-        $messages = Message::where('conversation_id', $conversationId)
-                           ->orderBy('created_at', 'asc')
-                           ->get();
-        return response()->json(['messages' => $messages]);
-    }
-
-    public function deleteConversation($conversationId)
-    {
-        $conversation = Conversation::find($conversationId);
-
-        if (!$conversation) {
-            return response()->json(['message' => 'Conversation not found'], 404);
-        }
-
-        // Optional: Add authorization check here if needed (e.g., only owner can delete)
-        // if ($conversation->user_id !== Auth::id()) {
-        //     return response()->json(['message' => 'Unauthorized'], 403);
-        // }
-
-        $conversation->delete(); // Messages will be cascade deleted
-
-        return response()->json(['message' => 'Conversation deleted successfully']);
-    }
-    public function updateConversationTitle(Request $request)
-    {
-        $request->validate([
-            'conversation_id' => 'required|uuid',
-            'user_prompt' => 'required|string',
-            'api_key' => 'required|string',
-        ]);
-
-        $conversationId = $request->input('conversation_id');
-        $userPrompt = $request->input('user_prompt'); // This is the original user prompt for title generation
-
-        $conversation = Conversation::find($conversationId);
-
-        if (!$conversation) {
-            return response()->json(['error' => 'Conversation not found.'], 404);
-        }
-
-        $apiKey = $request->input('api_key');
-
-        try {
-            // Use Gemini to generate a title based on the user's prompt
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'x-goog-api-key' => $apiKey,
-            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent", [
-                'contents' => [
-                    ['parts' => [['text' => "You are Professor Johnson. Generate a concise, academic-style title (max 10 words) for a chat conversation based on this initial user message: \"{$userPrompt}\". Do not include any markdown formatting in the title."]]]
-                ]
-            ]);
-
-            $response->throw();
-            $responseData = $response->json();
-            $generatedTitle = 'New Chat'; // Default if AI fails
-
-            if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
-                $generatedTitle = $responseData['candidates'][0]['content']['parts'][0]['text'];
-                // Remove markdown formatting (e.g., **title**)
-                $generatedTitle = preg_replace('/[_\*~`]+/', '', $generatedTitle);
-                $generatedTitle = \Illuminate\Support\Str::limit($generatedTitle, 50);
-            }
-
-            $conversation->title = $generatedTitle;
-            $conversation->save();
-
-            return response()->json(['success' => true, 'new_title' => $generatedTitle]);
-
-        } catch (RequestException $e) {
-            Log::error('Gemini API Request Exception for title generation: ' . $e->getMessage(), ['response_body' => $e->response ? $e->response->body() : 'No response body']);
-            return response()->json(['error' => 'API Error generating title: ' . $e->getMessage()], $e->response ? $e->response->status() : 500);
-        } catch (\Exception $e) {
-            Log::error('An unexpected error occurred during title generation: ' . $e->getMessage());
-            return response()->json(['error' => 'An unexpected server error occurred during title generation: ' . $e->getMessage()], 500);
-        }
-    }
-
     public function validateApiKey(Request $request)
     {
         $request->validate([
@@ -300,22 +264,80 @@ class GeminiController extends Controller
         $apiKey = $request->input('api_key');
 
         try {
+            // Attempt to list models to validate the API key
             $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
                 'x-goog-api-key' => $apiKey,
-            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent", [
-                'contents' => [
-                    ['parts' => [['text' => 'Hello']]]
-                ]
-            ]);
+            ])->get("https://generativelanguage.googleapis.com/v1beta/models");
 
             if ($response->successful()) {
-                return response()->json(['valid' => true]);
+                return response()->json(['message' => 'API Key is valid.']);
             } else {
-                return response()->json(['valid' => false], 401);
+                Log::error('API Key validation failed: ' . $response->body());
+                return response()->json(['message' => 'Invalid API Key. Please check your key and try again.'], 400);
             }
         } catch (\Exception $e) {
-            return response()->json(['valid' => false, 'error' => $e->getMessage()], 500);
+            Log::error('Error during API key validation: ' . $e->getMessage());
+            return response()->json(['message' => 'An error occurred while validating the API key.'], 500);
         }
     }
+
+    public function deleteConversation($conversationId)
+    {
+        $userId = Auth::id();
+        Log::info("Attempting to delete conversation {$conversationId} for user {$userId}");
+
+        $conversation = Conversation::where('id', $conversationId)
+                                    ->where('user_id', $userId)
+                                    ->first();
+
+        if (!$conversation) {
+            Log::warning("Conversation {$conversationId} not found or unauthorized for user {$userId}");
+            return redirect()->back()->with('error', 'Conversation not found or unauthorized.');
+        }
+
+        $conversation->delete(); // Messages will be cascade deleted
+        Log::info("Conversation {$conversationId} deleted successfully for user {$userId}");
+
+        // Redirect to the base assistant page or the first available conversation
+        $firstConversation = Conversation::where('user_id', $userId)->orderBy('updated_at', 'desc')->first();
+        if ($firstConversation) {
+            return redirect()->route('assistant.show', ['conversationId' => $firstConversation->id])
+                            ->with('success', 'Conversation deleted successfully!');
+        } else {
+            return redirect()->route('assistant.show')
+                            ->with('success', 'Conversation deleted successfully. No other conversations.');
+        }
+    }
+
+    public function newConversation()
+    {
+        $userId = Auth::id();
+        $conversations = Conversation::where('user_id', $userId)
+                                     ->withCount('messages')
+                                     ->orderBy('updated_at', 'desc')
+                                     ->get();
+
+        return view('assistant', [
+            'conversationId' => null, // Explicitly pass null for new conversations
+            'conversations' => $conversations,
+            'messages' => collect(), // Empty collection for new chat
+            'professorAvatarUrl' => asset('images/professor_avatar.jpg'),
+        ]);
+    }
+
+    public function messages($conversationId)
+    {
+        $userId = Auth::id();
+
+        $conversation = Conversation::where('id', $conversationId)
+                                    ->where('user_id', $userId)
+                                    ->firstOrFail();
+
+        $messages = Message::where('conversation_id', $conversation->id)
+                           ->orderBy('created_at', 'asc')
+                           ->get();
+
+        return response()->json(['messages' => $messages]);
+    }
 }
+

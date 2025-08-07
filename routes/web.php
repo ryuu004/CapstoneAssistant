@@ -36,8 +36,5 @@ Route::get('/debug-config', function () {
 });
 
 // CSP Reporting Endpoint
-Route::post('/csp-report', function () {
-    $data = json_decode(request()->getContent(), true);
-    Log::warning('CSP Violation', $data);
-    return response()->json(['status' => 'ok']);
-});
+Route::post('/csp-report', [App\Http\Controllers\CSPReportController::class, 'report']);
+

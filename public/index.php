@@ -5,6 +5,9 @@ use Illuminate\Http\Request;
 
 define('LARAVEL_START', microtime(true));
 
+// ✅ Add CSP header here:
+header("Content-Security-Policy: script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval'; report-uri /csp-report");
+
 // Determine if the application is in maintenance mode...
 if (file_exists($maintenance = __DIR__.'/../storage/framework/maintenance.php')) {
     require $maintenance;

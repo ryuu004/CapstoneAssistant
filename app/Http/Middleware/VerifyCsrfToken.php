@@ -9,6 +9,15 @@ use Symfony\Component\HttpFoundation\Response;
 class VerifyCsrfToken
 {
     /**
+     * The URIs that should be excluded from CSRF verification.
+     *
+     * @var array<int, string>
+     */
+    protected $except = [
+        '/csp-report',
+    ];
+
+    /**
      * Handle an incoming request.
      *
      * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
@@ -17,9 +26,4 @@ class VerifyCsrfToken
     {
         return $next($request);
     }
-
-    protected $except = [
-    '/csp-report',
-];
-
 }

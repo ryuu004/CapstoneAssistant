@@ -7,7 +7,7 @@ services:
       - key: APP_ENV
         value: production
       - key: APP_DEBUG
-        value: "true" # Set to "false" after debugging
+        value: "false" # Set to "false" for production
       - key: APP_URL
         value: ${RENDER_EXTERNAL_URL}
       - key: APP_KEY
@@ -26,3 +26,8 @@ services:
         value: i2Wrjj5JMm3SiMTz
       - key: DATABASE_URL # Keep DATABASE_URL for compatibility
         value: postgresql://postgres.sljbkhdssflyyienixka:i2Wrjj5JMm3SiMTz@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
+      - key: SESSION_DRIVER
+        value: database
+      - key: CACHE_DRIVER
+        value: file
+    startCommand: "php artisan migrate --force && php-fpm"

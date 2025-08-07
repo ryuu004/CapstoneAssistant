@@ -1,11 +1,13 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Log; // Add this line
 use App\Http\Controllers\GeminiController;
 use App\Http\Controllers\FileUploadController;
 
 Route::get('/{conversationId?}', function ($conversationId = null) {
-    return view('assistant', ['conversationId' => $conversationId]);
+    $professorAvatarUrl = asset('images/professor_avatar.jpg');
+    return view('assistant', compact('conversationId', 'professorAvatarUrl'));
 })->where('conversationId', '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}');
 
 Route::post('/ask-gemini', [GeminiController::class, 'ask']);
@@ -31,4 +33,11 @@ Route::get('/debug-config', function () {
         'DB_PASSWORD' => config('database.connections.pgsql.password') ? '******' : 'null',
         'DB_SSLMODE' => config('database.connections.pgsql.sslmode'),
     ];
+});
+
+// CSP Reporting Endpoint
+Route::post('/csp-report', function () {
+    $data = json_decode(request()->getContent(), true);
+    Log::warning('CSP Violation', $data);
+    return response()->json(['status' => 'ok']);
 });
